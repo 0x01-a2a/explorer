@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { GlobeMethods } from "react-globe.gl";
-import type { AgentReputation, ArcData, PointData } from "@/types/events";
+import type { AgentReputation, ActivityEvent, PointData } from "@/types/events";
 import {
   resolveGeo,
   geoFromId,
@@ -15,6 +15,7 @@ const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
 
 interface MeshGlobeProps {
   agents: AgentReputation[];
+  events: ActivityEvent[];
   beaconBpm?: number;
   onAgentClick?: (agent: AgentReputation) => void;
 }
@@ -27,21 +28,30 @@ interface RingData {
   repeatPeriod: number;
 }
 
-interface SignalArc {
+interface LiveArc {
   startLat: number;
   startLng: number;
   endLat: number;
   endLng: number;
   color: [string, string];
+  stroke: number;
   id: number;
 }
 
-export function MeshGlobe({ agents, beaconBpm = 0, onAgentClick }: MeshGlobeProps) {
+const EVENT_COLORS: Record<string, [string, string]> = {
+  FEEDBACK: ["#ffb800cc", "#00ff88aa"],
+  DISPUTE: ["#ff4466cc", "#ff4466aa"],
+  VERDICT: ["#a855f7cc", "#00f0ffaa"],
+  JOIN: ["#00f0ffcc", "#00ff88aa"],
+};
+
+export function MeshGlobe({ agents, events, beaconBpm = 0, onAgentClick }: MeshGlobeProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const containerRef = useRef<HTMLDivElement>(null);
-  const [signalArcs, setSignalArcs] = useState<SignalArc[]>([]);
+  const [liveArcs, setLiveArcs] = useState<LiveArc[]>([]);
   const arcIdRef = useRef(0);
+  const lastEventIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     function handleResize() {
@@ -67,36 +77,67 @@ export function MeshGlobe({ agents, beaconBpm = 0, onAgentClick }: MeshGlobeProp
     }
   }, []);
 
-  // Live signal arcs — fire between bootstrap nodes at beacon rate
-  useEffect(() => {
-    if (beaconBpm <= 0) return;
-    const intervalMs = Math.max(400, 60000 / beaconBpm);
+  // Resolve agent_id to globe coordinates
+  const agentGeoMap = useMemo(() => {
+    const map = new Map<string, { lat: number; lng: number }>();
+    for (const a of agents) {
+      map.set(a.agent_id, resolveGeo(a.country, a.city) ?? geoFromId(a.agent_id));
+    }
+    return map;
+  }, [agents]);
 
-    const timer = setInterval(() => {
-      const from = BOOTSTRAP_NODES[Math.floor(Math.random() * BOOTSTRAP_NODES.length)];
-      let to = BOOTSTRAP_NODES[Math.floor(Math.random() * BOOTSTRAP_NODES.length)];
-      while (to === from && BOOTSTRAP_NODES.length > 1) {
-        to = BOOTSTRAP_NODES[Math.floor(Math.random() * BOOTSTRAP_NODES.length)];
+  // Convert real-time events into arcs on the globe
+  useEffect(() => {
+    if (events.length === 0) return;
+
+    // Collect events we haven't seen yet (events[0] is newest)
+    const unseen: ActivityEvent[] = [];
+    for (const ev of events) {
+      if (ev.id === lastEventIdRef.current) break;
+      unseen.push(ev);
+    }
+    if (unseen.length === 0) return;
+    lastEventIdRef.current = events[0].id;
+
+    const newArcs: LiveArc[] = [];
+    for (const ev of unseen) {
+      const from = agentGeoMap.get(ev.agent_id) ?? geoFromId(ev.agent_id);
+      let to: { lat: number; lng: number };
+
+      if (ev.target_id) {
+        to = agentGeoMap.get(ev.target_id) ?? geoFromId(ev.target_id);
+      } else {
+        to = nearestBootstrap(from.lat, from.lng);
       }
 
-      const id = arcIdRef.current++;
-      const colors: [string, string][] = [
-        ["#00f0ffcc", "#00ff88aa"],
-        ["#ff4466aa", "#ffb800aa"],
-        ["#a855f7aa", "#00f0ffaa"],
-        ["#00ff88cc", "#ffb800aa"],
-      ];
-      const color = colors[id % colors.length];
+      if (Math.abs(from.lat - to.lat) < 0.5 && Math.abs(from.lng - to.lng) < 0.5) continue;
 
-      setSignalArcs((prev) => {
-        const next = [...prev, { startLat: from.lat, startLng: from.lng, endLat: to.lat, endLng: to.lng, color, id }];
-        if (next.length > 8) next.shift();
-        return next;
+      newArcs.push({
+        startLat: from.lat,
+        startLng: from.lng,
+        endLat: to.lat,
+        endLng: to.lng,
+        color: EVENT_COLORS[ev.event_type] ?? EVENT_COLORS.JOIN,
+        stroke: ev.event_type === "DISPUTE" ? 1.2 : 0.8,
+        id: arcIdRef.current++,
       });
-    }, intervalMs);
+    }
 
+    if (newArcs.length === 0) return;
+
+    setLiveArcs((prev) => [...newArcs, ...prev].slice(0, 12));
+  }, [events, agentGeoMap]);
+
+  // Fade out old arcs
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveArcs((prev) => {
+        if (prev.length <= 3) return prev;
+        return prev.slice(0, -1);
+      });
+    }, 4000);
     return () => clearInterval(timer);
-  }, [beaconBpm]);
+  }, []);
 
   const points: PointData[] = useMemo(() => {
     const agentPoints: PointData[] = [];
@@ -132,7 +173,7 @@ export function MeshGlobe({ agents, beaconBpm = 0, onAgentClick }: MeshGlobeProp
   }, [agents]);
 
   // Static arcs: active agents → nearest bootstrap
-  const staticArcs: ArcData[] = useMemo(() => {
+  const staticArcs = useMemo(() => {
     return agents
       .filter((a) => {
         const geo = resolveGeo(a.country, a.city);
@@ -146,13 +187,14 @@ export function MeshGlobe({ agents, beaconBpm = 0, onAgentClick }: MeshGlobeProp
           startLng: geo.lng,
           endLat: bootstrap.lat,
           endLng: bootstrap.lng,
-          color: ["#00f0ff55", "#00ff8833"] as [string, string],
+          color: ["#00f0ff33", "#00ff8822"] as [string, string],
+          stroke: 0.3,
+          id: -1,
         };
       });
   }, [agents]);
 
-  // Combine static arcs + live signal arcs
-  const allArcs = useMemo(() => [...staticArcs, ...signalArcs], [staticArcs, signalArcs]);
+  const allArcs = useMemo(() => [...liveArcs, ...staticArcs], [liveArcs, staticArcs]);
 
   // Pulsing rings on bootstrap nodes
   const rings: RingData[] = useMemo(() => {
@@ -207,7 +249,7 @@ export function MeshGlobe({ agents, beaconBpm = 0, onAgentClick }: MeshGlobeProp
         arcDashLength={0.6}
         arcDashGap={0.3}
         arcDashAnimateTime={1200}
-        arcStroke={0.8}
+        arcStroke={(d: object) => (d as LiveArc).stroke ?? 0.5}
         arcAltitudeAutoScale={0.4}
         ringsData={rings}
         ringLat="lat"

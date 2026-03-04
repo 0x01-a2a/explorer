@@ -42,6 +42,7 @@ export default function Explorer() {
             >
               <MeshGlobe
                 agents={agents}
+                events={events}
                 beaconBpm={networkStats?.beacon_bpm ?? 0}
                 onAgentClick={(agent) => setSelectedAgent(agent)}
               />
@@ -65,8 +66,16 @@ export default function Explorer() {
                     Bootstrap Node
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-6 border-t-2 border-dashed border-neon-cyan/60" />
-                    Signal / Beacon
+                    <span className="h-2 w-6 border-t-2 border-[#ffb800] rounded-sm" />
+                    Live Interaction
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-6 border-t-2 border-dashed border-neon-cyan/30" />
+                    Static Link
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-6 border-t-2 border-[#ff4466]" />
+                    Dispute
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full border border-neon-cyan/40 bg-transparent animate-ping" style={{ animationDuration: "2s" }} />

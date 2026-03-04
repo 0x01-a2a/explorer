@@ -19,7 +19,7 @@ export function useActivityStream() {
   }, []);
 
   useEffect(() => {
-    const useMock = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
+    const useMock = !process.env.NEXT_PUBLIC_WS_URL;
 
     if (useMock) {
       setConnected(true);
