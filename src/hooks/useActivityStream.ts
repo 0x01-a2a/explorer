@@ -25,7 +25,7 @@ export function useActivityStream() {
       setConnected(true);
       for (let i = 0; i < 8; i++) {
         const e = generateMockEvent();
-        e.ts = Date.now() - (8 - i) * 3000;
+        e.ts = Math.floor(Date.now() / 1000) - (8 - i) * 3;
         addEvent(e);
       }
       mockTimer.current = setInterval(() => {
@@ -37,9 +37,16 @@ export function useActivityStream() {
       };
     }
 
+    // Real WebSocket to aggregator (via proxy or direct)
+    // Aggregator accepts auth via query param: ?token=<secret>
+    // In production, connect directly to aggregator if token is public,
+    // or use a server-side proxy route for the WS upgrade
     function connect() {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
+      const wsUrl =
+        process.env.NEXT_PUBLIC_WS_URL ||
+        `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws`;
+
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {

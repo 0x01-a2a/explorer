@@ -1,120 +1,111 @@
 import type {
   ActivityEvent,
-  PeerSnapshot,
-  KPIData,
-  ActivityEventType,
+  AgentReputation,
+  NetworkStats,
 } from "@/types/events";
-import { jitterGeo } from "./geo";
 
-const CITIES: { lat: number; lng: number; country: string; city: string }[] = [
-  { lat: 40.7128, lng: -74.006, country: "US", city: "New York" },
-  { lat: 34.0522, lng: -118.2437, country: "US", city: "Los Angeles" },
-  { lat: 51.5074, lng: -0.1278, country: "GB", city: "London" },
-  { lat: 48.8566, lng: 2.3522, country: "FR", city: "Paris" },
-  { lat: 52.52, lng: 13.405, country: "DE", city: "Berlin" },
-  { lat: 35.6762, lng: 139.6503, country: "JP", city: "Tokyo" },
-  { lat: 1.3521, lng: 103.8198, country: "SG", city: "Singapore" },
-  { lat: -33.8688, lng: 151.2093, country: "AU", city: "Sydney" },
-  { lat: 55.7558, lng: 37.6173, country: "RU", city: "Moscow" },
-  { lat: 37.5665, lng: 126.978, country: "KR", city: "Seoul" },
-  { lat: 19.076, lng: 72.8777, country: "IN", city: "Mumbai" },
-  { lat: -23.5505, lng: -46.6333, country: "BR", city: "São Paulo" },
-  { lat: 30.0444, lng: 31.2357, country: "EG", city: "Cairo" },
-  { lat: 41.0082, lng: 28.9784, country: "TR", city: "Istanbul" },
-  { lat: 25.2048, lng: 55.2708, country: "AE", city: "Dubai" },
-  { lat: 50.0647, lng: 19.945, country: "PL", city: "Kraków" },
-  { lat: 52.2297, lng: 21.0122, country: "PL", city: "Warsaw" },
-  { lat: 47.4979, lng: 19.0402, country: "HU", city: "Budapest" },
-  { lat: 59.9139, lng: 10.7522, country: "NO", city: "Oslo" },
-  { lat: 45.4642, lng: 9.19, country: "IT", city: "Milan" },
+const CITIES: { country: string; city: string }[] = [
+  { country: "US", city: "New York" },
+  { country: "US", city: "Los Angeles" },
+  { country: "US", city: "San Francisco" },
+  { country: "GB", city: "London" },
+  { country: "FR", city: "Paris" },
+  { country: "DE", city: "Berlin" },
+  { country: "JP", city: "Tokyo" },
+  { country: "SG", city: "Singapore" },
+  { country: "AU", city: "Sydney" },
+  { country: "KR", city: "Seoul" },
+  { country: "IN", city: "Mumbai" },
+  { country: "BR", city: "São Paulo" },
+  { country: "NG", city: "Lagos" },
+  { country: "TR", city: "Istanbul" },
+  { country: "AE", city: "Dubai" },
+  { country: "PL", city: "Kraków" },
+  { country: "PL", city: "Warsaw" },
+  { country: "HU", city: "Budapest" },
+  { country: "NO", city: "Oslo" },
+  { country: "IT", city: "Milan" },
 ];
 
-const SERVICES = [
-  "coding",
-  "translation",
-  "data_analysis",
-  "local_delivery",
-  "image_gen",
-  "web_scraping",
-  "nlp",
-  "audio_transcription",
-  "summarization",
-  "verification",
+const NAMES = [
+  "atlas", "nova", "sentinel", "cipher", "nexus", "oracle",
+  "meridian", "vanguard", "phantom", "zenith", "cortex", "prism",
+  "vector", "cascade", "beacon", "argon", "helix", "flux",
+  "obsidian", "summit", "drift", "echo", "radiant", "forge",
+  "pulse", "nebula", "titan", "vortex", "ember", "frost",
+  "quantum", "sage", "raven", "luna", "solar",
 ];
 
-function randomId(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  let result = "sati";
-  for (let i = 0; i < 40; i++) {
+function randomHexId(): string {
+  const chars = "0123456789abcdef";
+  let result = "";
+  for (let i = 0; i < 64; i++) {
     result += chars[Math.floor(Math.random() * chars.length)];
   }
   return result;
 }
 
-const AGENT_IDS = Array.from({ length: 35 }, () => randomId());
+const AGENT_IDS = Array.from({ length: 35 }, () => randomHexId());
 
-export function generateMockPeers(): PeerSnapshot[] {
+let eventCounter = 1000;
+
+export function generateMockAgents(): AgentReputation[] {
   return AGENT_IDS.map((agent_id, i) => {
     const city = CITIES[i % CITIES.length];
-    const [lat, lng] = jitterGeo(city.lat, city.lng, 1.5);
-    const numServices = 1 + Math.floor(Math.random() * 3);
-    const shuffled = [...SERVICES].sort(() => Math.random() - 0.5);
+    const feedbackCount = 5 + Math.floor(Math.random() * 80);
+    const positiveCount = Math.floor(feedbackCount * (0.6 + Math.random() * 0.35));
+    const negativeCount = Math.floor((feedbackCount - positiveCount) * Math.random());
+    const neutralCount = feedbackCount - positiveCount - negativeCount;
+
     return {
       agent_id,
-      peer_id: `12D3KooW${randomId().slice(0, 20)}`,
-      sati_ok: Math.random() > 0.1,
-      lease_ok: Math.random() > 0.15,
-      last_active_epoch: Date.now() - Math.floor(Math.random() * 86400000),
-      geo: {
-        lat,
-        lng,
-        country: city.country,
-        city: city.city,
-        region: `${city.country}-${city.city.slice(0, 4)}`,
-      },
-      services: shuffled.slice(0, numServices),
+      feedback_count: feedbackCount,
+      total_score: positiveCount * 4 + neutralCount * 2 - negativeCount * 2,
+      positive_count: positiveCount,
+      neutral_count: neutralCount,
+      negative_count: negativeCount,
+      verdict_count: Math.floor(Math.random() * 5),
+      average_score: 2 + Math.random() * 3,
+      last_updated: Date.now() - Math.floor(Math.random() * 86400000),
+      trend: (["rising", "stable", "falling"] as const)[Math.floor(Math.random() * 3)],
+      last_seen: Date.now() - Math.floor(Math.random() * 3600000),
+      name: NAMES[i % NAMES.length],
+      country: city.country,
+      city: city.city,
+      latency: { "us-east": 30 + Math.floor(Math.random() * 100) },
+      geo_consistent: Math.random() > 0.1,
     };
   });
 }
 
-export function generateMockKPI(): KPIData {
+export function generateMockNetworkStats(): NetworkStats {
   return {
-    mesh_volume_24h: 12450 + Math.floor(Math.random() * 3000),
-    active_agents_24h: 28 + Math.floor(Math.random() * 15),
-    completed_quests_24h: 156 + Math.floor(Math.random() * 50),
+    agent_count: 28 + Math.floor(Math.random() * 15),
+    interaction_count: 4500 + Math.floor(Math.random() * 2000),
+    beacon_count: 12000 + Math.floor(Math.random() * 5000),
+    beacon_bpm: 3 + Math.floor(Math.random() * 8),
+    started_at: Date.now() - 86400000 * 14,
   };
 }
 
 export function generateMockEvent(): ActivityEvent {
-  const types: ActivityEventType[] = [
-    "JOIN",
-    "FEEDBACK",
-    "DISPUTE",
-    "VERDICT",
-    "ADVERTISE",
-    "ESCROW_LOCKED",
-    "ESCROW_RELEASED",
-  ];
+  const types = ["JOIN", "FEEDBACK", "DISPUTE", "VERDICT"] as const;
   const type = types[Math.floor(Math.random() * types.length)];
   const agent = AGENT_IDS[Math.floor(Math.random() * AGENT_IDS.length)];
+  const agentIdx = AGENT_IDS.indexOf(agent);
   const target = AGENT_IDS[Math.floor(Math.random() * AGENT_IDS.length)];
-  const city = CITIES[Math.floor(Math.random() * CITIES.length)];
+  const targetIdx = AGENT_IDS.indexOf(target);
 
   return {
-    id: crypto.randomUUID(),
-    ts: Date.now(),
+    id: eventCounter++,
+    ts: Math.floor(Date.now() / 1000),
     event_type: type,
     agent_id: agent,
-    target_id: type === "FEEDBACK" || type === "VERDICT" ? target : undefined,
-    score: type === "FEEDBACK" ? 60 + Math.floor(Math.random() * 40) : undefined,
-    amount:
-      type === "ESCROW_LOCKED" || type === "ESCROW_RELEASED"
-        ? parseFloat((0.5 + Math.random() * 9.5).toFixed(2))
-        : undefined,
-    service:
-      type === "ADVERTISE"
-        ? SERVICES[Math.floor(Math.random() * SERVICES.length)]
-        : undefined,
-    region: `${city.country}-${city.city.slice(0, 4)}`,
+    target_id: type !== "JOIN" ? target : undefined,
+    score: type === "FEEDBACK" ? 1 + Math.floor(Math.random() * 5) : undefined,
+    name: NAMES[agentIdx % NAMES.length],
+    target_name: type !== "JOIN" ? NAMES[targetIdx % NAMES.length] : undefined,
+    slot: Math.floor(Math.random() * 10000),
+    conversation_id: type !== "JOIN" ? randomHexId().slice(0, 16) : undefined,
   };
 }

@@ -1,16 +1,37 @@
-export type ActivityEventType =
-  | "JOIN"
-  | "FEEDBACK"
-  | "DISPUTE"
-  | "VERDICT"
-  | "ADVERTISE"
-  | "ESCROW_LOCKED"
-  | "ESCROW_RELEASED";
+// Matches aggregator's AgentReputation struct exactly
+export interface AgentReputation {
+  agent_id: string;
+  feedback_count: number;
+  total_score: number;
+  positive_count: number;
+  neutral_count: number;
+  negative_count: number;
+  verdict_count: number;
+  average_score: number;
+  last_updated: number;
+  trend: "rising" | "falling" | "stable";
+  last_seen: number;
+  name: string;
+  country?: string;
+  city?: string;
+  latency: Record<string, number>;
+  geo_consistent?: boolean;
+}
 
+// Matches aggregator's NetworkStats struct
+export interface NetworkStats {
+  agent_count: number;
+  interaction_count: number;
+  beacon_count: number;
+  beacon_bpm: number;
+  started_at: number;
+}
+
+// Matches aggregator's ActivityEvent struct from /ws/activity and /activity
 export interface ActivityEvent {
-  id: string;
+  id: number;
   ts: number;
-  event_type: ActivityEventType;
+  event_type: "JOIN" | "FEEDBACK" | "DISPUTE" | "VERDICT";
   agent_id: string;
   target_id?: string;
   score?: number;
@@ -18,43 +39,60 @@ export interface ActivityEvent {
   target_name?: string;
   slot?: number;
   conversation_id?: string;
-  amount?: number;
-  service?: string;
-  region?: string;
 }
 
-export interface PeerSnapshot {
+// Matches aggregator's EntropyEvent
+export interface EntropyEvent {
   agent_id: string;
-  peer_id: string;
-  sati_ok: boolean;
-  lease_ok: boolean;
-  last_active_epoch: number;
-  geo?: {
-    lat: number;
-    lng: number;
-    country?: string;
-    city?: string;
-    region?: string;
-  };
-  services?: string[];
+  epoch: number;
+  ht: number;
+  hb: number;
+  hs: number;
+  hv: number;
+  anomaly: number;
+  n_ht: number;
+  n_hb: number;
+  n_hs: number;
+  n_hv: number;
 }
 
-export interface ReputationSnapshot {
+// Matches aggregator's CapabilityMatch
+export interface CapabilityMatch {
   agent_id: string;
-  reliability: number;
-  cooperation: number;
-  notary_accuracy: number;
-  total_tasks: number;
-  total_disputes: number;
-  last_active_epoch: number;
+  capability: string;
+  last_seen: number;
 }
 
+// Matches aggregator's DisputeRecord
+export interface DisputeRecord {
+  id: number;
+  sender: string;
+  disputed_agent: string;
+  conversation_id: string;
+  slot: number;
+  ts: number;
+}
+
+// Matches aggregator's AgentProfile
+export interface AgentProfile {
+  agent_id: string;
+  name?: string;
+  reputation?: AgentReputation;
+  entropy?: EntropyEvent;
+  capabilities: CapabilityMatch[];
+  disputes: DisputeRecord[];
+  last_seen?: number;
+}
+
+// Derived KPI for the dashboard (computed from NetworkStats + extra)
 export interface KPIData {
-  mesh_volume_24h: number;
-  active_agents_24h: number;
-  completed_quests_24h: number;
+  active_agents: number;
+  total_interactions: number;
+  beacon_bpm: number;
+  uptime_hours: number;
 }
 
+// Globe visualization types
 export interface ArcData {
   startLat: number;
   startLng: number;
@@ -70,6 +108,7 @@ export interface PointData {
   color: string;
   agent_id: string;
   label?: string;
-  services?: string[];
-  region?: string;
+  name?: string;
+  country?: string;
+  city?: string;
 }

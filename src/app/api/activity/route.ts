@@ -1,17 +1,29 @@
-import { NextResponse } from "next/server";
-import { generateMockKPI } from "@/lib/mock";
+import { NextRequest, NextResponse } from "next/server";
+import { generateMockNetworkStats, generateMockEvent } from "@/lib/mock";
 
-export async function GET() {
+// Without query params: proxies to GET /stats/network → NetworkStats
+// With ?events=true: proxies to GET /activity?limit=N → ActivityEvent[]
+export async function GET(request: NextRequest) {
+  const wantEvents = request.nextUrl.searchParams.get("events") === "true";
+  const limit = request.nextUrl.searchParams.get("limit") || "50";
+
   if (process.env.USE_MOCK_DATA === "true") {
-    return NextResponse.json(generateMockKPI());
+    if (wantEvents) {
+      const events = Array.from({ length: Number(limit) }, () =>
+        generateMockEvent()
+      );
+      return NextResponse.json(events);
+    }
+    return NextResponse.json(generateMockNetworkStats());
   }
 
   try {
-    const res = await fetch(`${process.env.AGGREGATOR_URL}/stats`, {
-      headers: {
-        Authorization: `Bearer ${process.env.AGGREGATOR_API_TOKEN}`,
-      },
-      next: { revalidate: 30 },
+    const endpoint = wantEvents
+      ? `${process.env.AGGREGATOR_URL}/activity?limit=${limit}`
+      : `${process.env.AGGREGATOR_URL}/stats/network`;
+
+    const res = await fetch(endpoint, {
+      next: { revalidate: wantEvents ? 5 : 30 },
     });
 
     if (!res.ok) {
@@ -24,6 +36,12 @@ export async function GET() {
     const data = await res.json();
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json(generateMockKPI());
+    if (wantEvents) {
+      const events = Array.from({ length: Number(limit) }, () =>
+        generateMockEvent()
+      );
+      return NextResponse.json(events);
+    }
+    return NextResponse.json(generateMockNetworkStats());
   }
 }

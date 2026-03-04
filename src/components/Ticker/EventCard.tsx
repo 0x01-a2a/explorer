@@ -13,33 +13,26 @@ const EVENT_CONFIG: Record<
   { icon: string; color: string; label: string }
 > = {
   JOIN: { icon: "🟢", color: "text-neon-green", label: "JOINED" },
-  FEEDBACK: { icon: "🔵", color: "text-neon-cyan", label: "FEEDBACK" },
-  DISPUTE: { icon: "🟠", color: "text-neon-amber", label: "DISPUTE" },
+  FEEDBACK: { icon: "⭐", color: "text-neon-cyan", label: "FEEDBACK" },
+  DISPUTE: { icon: "⚠️", color: "text-neon-amber", label: "DISPUTE" },
   VERDICT: { icon: "⚖️", color: "text-neon-purple", label: "VERDICT" },
-  ADVERTISE: { icon: "📢", color: "text-neon-cyan", label: "ADVERTISE" },
-  ESCROW_LOCKED: { icon: "🔒", color: "text-neon-amber", label: "ESCROW" },
-  ESCROW_RELEASED: { icon: "💰", color: "text-neon-green", label: "RELEASED" },
 };
 
 function buildMessage(event: ActivityEvent): string {
-  const agent = truncateAddress(event.agent_id);
+  const agentName = event.name || truncateAddress(event.agent_id);
+  const targetName = event.target_name || (event.target_id ? truncateAddress(event.target_id) : "");
+
   switch (event.event_type) {
     case "JOIN":
-      return `Agent ${agent} joined the mesh${event.region ? ` (${event.region})` : ""}`;
-    case "ADVERTISE":
-      return `'${event.service || "service"}' offered by ${agent}${event.amount ? ` at ${event.amount} USDC` : ""}`;
-    case "ESCROW_LOCKED":
-      return `${event.amount?.toFixed(2) || "?"} USDC locked by ${agent}`;
-    case "ESCROW_RELEASED":
-      return `${event.amount?.toFixed(2) || "?"} USDC released to ${agent}`;
+      return `${agentName} joined the mesh`;
     case "FEEDBACK":
-      return `${agent} scored ${event.score || "?"}/100${event.target_id ? ` for ${truncateAddress(event.target_id)}` : ""}`;
+      return `${agentName} rated ${targetName} → ${event.score ?? "?"}/5`;
     case "DISPUTE":
-      return `Dispute raised by ${agent}${event.target_id ? ` against ${truncateAddress(event.target_id)}` : ""}`;
+      return `${agentName} disputed ${targetName}`;
     case "VERDICT":
-      return `Verdict delivered for ${agent}${event.score ? ` — score: ${event.score}` : ""}`;
+      return `Verdict for ${agentName}${event.score ? ` — score: ${event.score}` : ""}`;
     default:
-      return `Event from ${agent}`;
+      return `Event from ${agentName}`;
   }
 }
 
@@ -49,6 +42,9 @@ export function EventCard({ event }: EventCardProps) {
     color: "text-white",
     label: event.event_type,
   };
+
+  // Aggregator sends ts as epoch seconds
+  const tsMs = event.ts < 1e12 ? event.ts * 1000 : event.ts;
 
   return (
     <motion.div
@@ -68,7 +64,7 @@ export function EventCard({ event }: EventCardProps) {
             {config.label}
           </span>
           <span className="text-[10px] tabular-nums text-white/25 font-mono">
-            {formatTimestamp(event.ts)}
+            {formatTimestamp(tsMs)}
           </span>
         </div>
         <p className="mt-0.5 text-xs leading-relaxed text-white/60 font-mono">

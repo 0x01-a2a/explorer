@@ -1,24 +1,24 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import type { KPIData } from "@/types/events";
-import { generateMockKPI } from "@/lib/mock";
+import type { NetworkStats } from "@/types/events";
+import { generateMockNetworkStats } from "@/lib/mock";
 
 export function useKPIData(refreshInterval = 30000) {
-  const [data, setData] = useState<KPIData | null>(null);
+  const [data, setData] = useState<NetworkStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/api/activity");
       if (res.ok) {
-        const kpi = await res.json();
-        setData(kpi);
+        const stats: NetworkStats = await res.json();
+        setData(stats);
       } else {
-        setData(generateMockKPI());
+        setData(generateMockNetworkStats());
       }
     } catch {
-      setData(generateMockKPI());
+      setData(generateMockNetworkStats());
     } finally {
       setLoading(false);
     }

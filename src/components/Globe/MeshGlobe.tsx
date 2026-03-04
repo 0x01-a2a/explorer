@@ -3,17 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { GlobeMethods } from "react-globe.gl";
-import type { PeerSnapshot, ArcData, PointData } from "@/types/events";
-import { jitterGeo, nearestBootstrap, BOOTSTRAP_NODES } from "@/lib/geo";
+import type { AgentReputation, ArcData, PointData } from "@/types/events";
+import { resolveGeo, nearestBootstrap, BOOTSTRAP_NODES } from "@/lib/geo";
 
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
 
 interface MeshGlobeProps {
-  peers: PeerSnapshot[];
-  onAgentClick?: (agent: PeerSnapshot) => void;
+  agents: AgentReputation[];
+  onAgentClick?: (agent: AgentReputation) => void;
 }
 
-export function MeshGlobe({ peers, onAgentClick }: MeshGlobeProps) {
+export function MeshGlobe({ agents, onAgentClick }: MeshGlobeProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,21 +43,23 @@ export function MeshGlobe({ peers, onAgentClick }: MeshGlobeProps) {
   }, []);
 
   const points: PointData[] = useMemo(() => {
-    const agentPoints: PointData[] = peers
-      .filter((p) => p.geo)
-      .map((p) => {
-        const [lat, lng] = jitterGeo(p.geo!.lat, p.geo!.lng, 0.8);
-        return {
-          lat,
-          lng,
-          size: p.sati_ok ? 0.6 : 0.3,
-          color: p.sati_ok ? "#00f0ff" : "#ffffff44",
-          agent_id: p.agent_id,
-          label: p.geo?.city,
-          services: p.services,
-          region: p.geo?.region,
-        };
+    const agentPoints: PointData[] = [];
+    for (const a of agents) {
+      const geo = resolveGeo(a.country, a.city);
+      if (!geo) continue;
+      const isActive = Date.now() - a.last_seen < 300000;
+      agentPoints.push({
+        lat: geo.lat,
+        lng: geo.lng,
+        size: isActive ? 0.6 : 0.3,
+        color: isActive ? "#00f0ff" : "#ffffff44",
+        agent_id: a.agent_id,
+        label: a.city || a.country,
+        name: a.name,
+        country: a.country,
+        city: a.city,
       });
+    }
 
     const bootstrapPoints: PointData[] = BOOTSTRAP_NODES.map((n) => ({
       lat: n.lat,
@@ -66,36 +68,39 @@ export function MeshGlobe({ peers, onAgentClick }: MeshGlobeProps) {
       color: "#00ff88",
       agent_id: `bootstrap-${n.label}`,
       label: n.label,
-      region: n.label,
+      name: n.label,
     }));
 
     return [...agentPoints, ...bootstrapPoints];
-  }, [peers]);
+  }, [agents]);
 
   const arcs: ArcData[] = useMemo(() => {
-    return peers
-      .filter((p) => p.geo && p.sati_ok)
-      .map((p) => {
-        const bootstrap = nearestBootstrap(p.geo!.lat, p.geo!.lng);
-        const [lat, lng] = jitterGeo(p.geo!.lat, p.geo!.lng, 0.8);
+    return agents
+      .filter((a) => {
+        const geo = resolveGeo(a.country, a.city);
+        return geo && Date.now() - a.last_seen < 300000;
+      })
+      .map((a) => {
+        const geo = resolveGeo(a.country, a.city)!;
+        const bootstrap = nearestBootstrap(geo.lat, geo.lng);
         return {
-          startLat: lat,
-          startLng: lng,
+          startLat: geo.lat,
+          startLng: geo.lng,
           endLat: bootstrap.lat,
           endLng: bootstrap.lng,
           color: ["#00f0ff88", "#00ff8844"] as [string, string],
         };
       });
-  }, [peers]);
+  }, [agents]);
 
   const handlePointClick = useCallback(
     (point: object) => {
       const p = point as PointData;
       if (p.agent_id.startsWith("bootstrap-")) return;
-      const peer = peers.find((peer) => peer.agent_id === p.agent_id);
-      if (peer && onAgentClick) onAgentClick(peer);
+      const agent = agents.find((a) => a.agent_id === p.agent_id);
+      if (agent && onAgentClick) onAgentClick(agent);
     },
-    [peers, onAgentClick]
+    [agents, onAgentClick]
   );
 
   return (

@@ -8,17 +8,19 @@ import { EventTicker } from "@/components/Ticker/EventTicker";
 import { KPICards } from "@/components/Dashboard/KPICards";
 import { AgentPreview } from "@/components/Agent/AgentPreview";
 import { CTABanner } from "@/components/Layout/CTABanner";
-import { BOOTSTRAP_NODES } from "@/lib/geo";
 import { useActivityStream } from "@/hooks/useActivityStream";
 import { useKPIData } from "@/hooks/useKPIData";
 import { usePeers } from "@/hooks/usePeers";
-import type { PeerSnapshot } from "@/types/events";
+import { BOOTSTRAP_NODES } from "@/lib/geo";
+import type { AgentReputation } from "@/types/events";
 
 export default function Explorer() {
   const { events, connected } = useActivityStream();
-  const { data: kpiData, loading: kpiLoading } = useKPIData();
-  const { peers } = usePeers();
-  const [selectedAgent, setSelectedAgent] = useState<PeerSnapshot | null>(null);
+  const { data: networkStats, loading: statsLoading } = useKPIData();
+  const { agents } = usePeers();
+  const [selectedAgent, setSelectedAgent] = useState<AgentReputation | null>(
+    null
+  );
 
   return (
     <div className="min-h-screen">
@@ -27,7 +29,7 @@ export default function Explorer() {
       <main className="pt-14">
         {/* KPI Bar */}
         <section className="mx-auto max-w-[1920px] px-4 pt-4 lg:px-8">
-          <KPICards data={kpiData} loading={kpiLoading} />
+          <KPICards data={networkStats} loading={statsLoading} />
         </section>
 
         {/* Globe + Ticker */}
@@ -40,11 +42,11 @@ export default function Explorer() {
               style={{ minHeight: "clamp(400px, 60vh, 800px)" }}
             >
               <MeshGlobe
-                peers={peers}
+                agents={agents}
                 onAgentClick={(agent) => setSelectedAgent(agent)}
               />
               <GlobeOverlay
-                agentCount={peers.length}
+                agentCount={agents.length}
                 bootstrapCount={BOOTSTRAP_NODES.length}
               />
               <div className="absolute bottom-4 left-4 z-20">
@@ -66,9 +68,7 @@ export default function Explorer() {
             </div>
 
             {/* Ticker */}
-            <div
-              className="lg:max-h-[clamp(400px,60vh,800px)]"
-            >
+            <div className="lg:max-h-[clamp(400px,60vh,800px)]">
               <EventTicker events={events} connected={connected} />
             </div>
           </div>
