@@ -5,10 +5,12 @@ import type { ActivityEvent } from "@/types/events";
 import { generateMockEvent } from "@/lib/mock";
 
 const MAX_EVENTS = 100;
+const WS_FALLBACK_TIMEOUT = 8000;
 
 export function useActivityStream() {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [isLive, setIsLive] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const mockTimer = useRef<ReturnType<typeof setInterval>>(undefined);
@@ -18,39 +20,48 @@ export function useActivityStream() {
     setEvents((prev) => [event, ...prev].slice(0, MAX_EVENTS));
   }, []);
 
+  const startMock = useCallback(() => {
+    setConnected(true);
+    setIsLive(false);
+    for (let i = 0; i < 8; i++) {
+      const e = generateMockEvent();
+      e.ts = Math.floor(Date.now() / 1000) - (8 - i) * 3;
+      addEvent(e);
+    }
+    mockTimer.current = setInterval(() => {
+      addEvent(generateMockEvent());
+    }, 2000 + Math.random() * 3000);
+  }, [addEvent]);
+
   useEffect(() => {
-    const useMock = !process.env.NEXT_PUBLIC_WS_URL;
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
 
-    if (useMock) {
-      setConnected(true);
-      for (let i = 0; i < 8; i++) {
-        const e = generateMockEvent();
-        e.ts = Math.floor(Date.now() / 1000) - (8 - i) * 3;
-        addEvent(e);
-      }
-      mockTimer.current = setInterval(() => {
-        addEvent(generateMockEvent());
-      }, 2000 + Math.random() * 3000);
-
+    if (!wsUrl) {
+      startMock();
       return () => {
         if (mockTimer.current) clearInterval(mockTimer.current);
       };
     }
 
-    // Real WebSocket to aggregator (via proxy or direct)
-    // Aggregator accepts auth via query param: ?token=<secret>
-    // In production, connect directly to aggregator if token is public,
-    // or use a server-side proxy route for the WS upgrade
-    function connect() {
-      const wsUrl =
-        process.env.NEXT_PUBLIC_WS_URL ||
-        `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws`;
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+    let fallen = false;
 
-      const ws = new WebSocket(wsUrl);
+    function connect() {
+      const ws = new WebSocket(wsUrl!);
       wsRef.current = ws;
 
+      fallbackTimer = setTimeout(() => {
+        if (!fallen && ws.readyState !== WebSocket.OPEN) {
+          fallen = true;
+          ws.close();
+          startMock();
+        }
+      }, WS_FALLBACK_TIMEOUT);
+
       ws.onopen = () => {
+        if (fallbackTimer) clearTimeout(fallbackTimer);
         setConnected(true);
+        setIsLive(true);
         backoff.current = 1000;
       };
 
@@ -59,16 +70,19 @@ export function useActivityStream() {
           const event: ActivityEvent = JSON.parse(e.data);
           addEvent(event);
         } catch {
-          // skip malformed messages
+          // skip malformed
         }
       };
 
       ws.onclose = () => {
         setConnected(false);
-        reconnectTimer.current = setTimeout(() => {
-          backoff.current = Math.min(backoff.current * 2, 30000);
-          connect();
-        }, backoff.current);
+        setIsLive(false);
+        if (!fallen) {
+          reconnectTimer.current = setTimeout(() => {
+            backoff.current = Math.min(backoff.current * 2, 30000);
+            connect();
+          }, backoff.current);
+        }
       };
 
       ws.onerror = () => ws.close();
@@ -77,10 +91,12 @@ export function useActivityStream() {
     connect();
 
     return () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      if (mockTimer.current) clearInterval(mockTimer.current);
       wsRef.current?.close();
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     };
-  }, [addEvent]);
+  }, [addEvent, startMock]);
 
-  return { events, connected };
+  return { events, connected, isLive };
 }

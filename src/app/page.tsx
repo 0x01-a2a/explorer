@@ -14,7 +14,7 @@ import { BOOTSTRAP_NODES } from "@/lib/geo";
 import type { AgentReputation } from "@/types/events";
 
 export default function Explorer() {
-  const { events, connected } = useActivityStream();
+  const { events, connected, isLive } = useActivityStream();
   const { data: networkStats } = useKPIData();
   const { agents } = usePeers();
   const [selectedAgent, setSelectedAgent] = useState<AgentReputation | null>(
@@ -42,7 +42,7 @@ export default function Explorer() {
             >
               <MeshGlobe
                 agents={agents}
-                events={events}
+                events={isLive ? events : []}
                 beaconBpm={networkStats?.beacon_bpm ?? 0}
                 onAgentClick={(agent) => setSelectedAgent(agent)}
               />

@@ -21,27 +21,6 @@ export function Header({ connected }: HeaderProps) {
           </div>
         </div>
 
-        <nav className="hidden items-center gap-6 md:flex">
-          <a
-            href="#globe"
-            className="text-sm text-white/50 transition-colors hover:text-white"
-          >
-            Network
-          </a>
-          <a
-            href="#activity"
-            className="text-sm text-white/50 transition-colors hover:text-white"
-          >
-            Activity
-          </a>
-          <a
-            href="#stats"
-            className="text-sm text-white/50 transition-colors hover:text-white"
-          >
-            Stats
-          </a>
-        </nav>
-
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-full glass px-3 py-1.5">
             <Pulse
