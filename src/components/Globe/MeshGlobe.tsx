@@ -4,19 +4,44 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { GlobeMethods } from "react-globe.gl";
 import type { AgentReputation, ArcData, PointData } from "@/types/events";
-import { resolveGeo, nearestBootstrap, BOOTSTRAP_NODES } from "@/lib/geo";
+import {
+  resolveGeo,
+  geoFromId,
+  nearestBootstrap,
+  BOOTSTRAP_NODES,
+} from "@/lib/geo";
 
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
 
 interface MeshGlobeProps {
   agents: AgentReputation[];
+  beaconBpm?: number;
   onAgentClick?: (agent: AgentReputation) => void;
 }
 
-export function MeshGlobe({ agents, onAgentClick }: MeshGlobeProps) {
+interface RingData {
+  lat: number;
+  lng: number;
+  maxR: number;
+  propagationSpeed: number;
+  repeatPeriod: number;
+}
+
+interface SignalArc {
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+  color: [string, string];
+  id: number;
+}
+
+export function MeshGlobe({ agents, beaconBpm = 0, onAgentClick }: MeshGlobeProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const [signalArcs, setSignalArcs] = useState<SignalArc[]>([]);
+  const arcIdRef = useRef(0);
 
   useEffect(() => {
     function handleResize() {
@@ -42,17 +67,49 @@ export function MeshGlobe({ agents, onAgentClick }: MeshGlobeProps) {
     }
   }, []);
 
+  // Live signal arcs — fire between bootstrap nodes at beacon rate
+  useEffect(() => {
+    if (beaconBpm <= 0) return;
+    const intervalMs = Math.max(400, 60000 / beaconBpm);
+
+    const timer = setInterval(() => {
+      const from = BOOTSTRAP_NODES[Math.floor(Math.random() * BOOTSTRAP_NODES.length)];
+      let to = BOOTSTRAP_NODES[Math.floor(Math.random() * BOOTSTRAP_NODES.length)];
+      while (to === from && BOOTSTRAP_NODES.length > 1) {
+        to = BOOTSTRAP_NODES[Math.floor(Math.random() * BOOTSTRAP_NODES.length)];
+      }
+
+      const id = arcIdRef.current++;
+      const colors: [string, string][] = [
+        ["#00f0ffcc", "#00ff88aa"],
+        ["#ff4466aa", "#ffb800aa"],
+        ["#a855f7aa", "#00f0ffaa"],
+        ["#00ff88cc", "#ffb800aa"],
+      ];
+      const color = colors[id % colors.length];
+
+      setSignalArcs((prev) => {
+        const next = [...prev, { startLat: from.lat, startLng: from.lng, endLat: to.lat, endLng: to.lng, color, id }];
+        if (next.length > 8) next.shift();
+        return next;
+      });
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [beaconBpm]);
+
   const points: PointData[] = useMemo(() => {
     const agentPoints: PointData[] = [];
     for (const a of agents) {
-      const geo = resolveGeo(a.country, a.city);
-      if (!geo) continue;
-      const isActive = Date.now() - a.last_seen < 300000;
+      const geo = resolveGeo(a.country, a.city) ?? geoFromId(a.agent_id);
+      const isActive = Date.now() / 1000 - a.last_seen < 300;
+      const hasRealGeo = !!(a.country || a.city);
+
       agentPoints.push({
         lat: geo.lat,
         lng: geo.lng,
-        size: isActive ? 0.6 : 0.3,
-        color: isActive ? "#00f0ff" : "#ffffff44",
+        size: isActive ? 0.6 : hasRealGeo ? 0.3 : 0.25,
+        color: isActive ? "#00f0ff" : hasRealGeo ? "#00f0ff44" : "#8b0000",
         agent_id: a.agent_id,
         label: a.city || a.country,
         name: a.name,
@@ -74,11 +131,12 @@ export function MeshGlobe({ agents, onAgentClick }: MeshGlobeProps) {
     return [...agentPoints, ...bootstrapPoints];
   }, [agents]);
 
-  const arcs: ArcData[] = useMemo(() => {
+  // Static arcs: active agents → nearest bootstrap
+  const staticArcs: ArcData[] = useMemo(() => {
     return agents
       .filter((a) => {
         const geo = resolveGeo(a.country, a.city);
-        return geo && Date.now() - a.last_seen < 300000;
+        return geo && Date.now() / 1000 - a.last_seen < 300;
       })
       .map((a) => {
         const geo = resolveGeo(a.country, a.city)!;
@@ -88,10 +146,26 @@ export function MeshGlobe({ agents, onAgentClick }: MeshGlobeProps) {
           startLng: geo.lng,
           endLat: bootstrap.lat,
           endLng: bootstrap.lng,
-          color: ["#00f0ff88", "#00ff8844"] as [string, string],
+          color: ["#00f0ff55", "#00ff8833"] as [string, string],
         };
       });
   }, [agents]);
+
+  // Combine static arcs + live signal arcs
+  const allArcs = useMemo(() => [...staticArcs, ...signalArcs], [staticArcs, signalArcs]);
+
+  // Pulsing rings on bootstrap nodes
+  const rings: RingData[] = useMemo(() => {
+    if (beaconBpm <= 0) return [];
+    const period = Math.max(800, 60000 / beaconBpm);
+    return BOOTSTRAP_NODES.map((n) => ({
+      lat: n.lat,
+      lng: n.lng,
+      maxR: 5,
+      propagationSpeed: 3,
+      repeatPeriod: period,
+    }));
+  }, [beaconBpm]);
 
   const handlePointClick = useCallback(
     (point: object) => {
@@ -124,17 +198,24 @@ export function MeshGlobe({ agents, onAgentClick }: MeshGlobeProps) {
         pointAltitude={0.01}
         pointsMerge={false}
         onPointClick={handlePointClick}
-        arcsData={arcs}
+        arcsData={allArcs}
         arcStartLat="startLat"
         arcStartLng="startLng"
         arcEndLat="endLat"
         arcEndLng="endLng"
         arcColor="color"
-        arcDashLength={0.4}
-        arcDashGap={0.2}
-        arcDashAnimateTime={1500}
-        arcStroke={0.5}
-        arcAltitudeAutoScale={0.3}
+        arcDashLength={0.6}
+        arcDashGap={0.3}
+        arcDashAnimateTime={1200}
+        arcStroke={0.8}
+        arcAltitudeAutoScale={0.4}
+        ringsData={rings}
+        ringLat="lat"
+        ringLng="lng"
+        ringMaxRadius="maxR"
+        ringPropagationSpeed="propagationSpeed"
+        ringRepeatPeriod="repeatPeriod"
+        ringColor={() => (t: number) => `rgba(0,240,255,${(1 - t) * 0.6})`}
         animateIn={true}
       />
     </div>

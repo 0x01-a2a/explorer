@@ -42,6 +42,7 @@ export default function Explorer() {
             >
               <MeshGlobe
                 agents={agents}
+                beaconBpm={networkStats?.beacon_bpm ?? 0}
                 onAgentClick={(agent) => setSelectedAgent(agent)}
               />
               <GlobeOverlay
@@ -50,18 +51,26 @@ export default function Explorer() {
                 bootstrapCount={BOOTSTRAP_NODES.length}
               />
               <div className="absolute bottom-4 right-4 z-20">
-                <div className="glass px-3 py-2 text-[10px] text-white/40 space-y-0.5">
+                <div className="glass px-3 py-2 text-[10px] text-white/40 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-neon-cyan" />
+                    <span className="h-2 w-2 rounded-full bg-neon-cyan shadow-[0_0_6px_#00f0ff]" />
                     Active Agent
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-neon-green" />
+                    <span className="h-2 w-2 rounded-full bg-[#8b0000]" />
+                    Inactive Agent
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-neon-green shadow-[0_0_6px_#00ff88]" />
                     Bootstrap Node
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-6 border-t border-dashed border-neon-cyan/50" />
-                    Relay Connection
+                    <span className="h-2 w-6 border-t-2 border-dashed border-neon-cyan/60" />
+                    Signal / Beacon
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full border border-neon-cyan/40 bg-transparent animate-ping" style={{ animationDuration: "2s" }} />
+                    Pulse Ring
                   </div>
                 </div>
               </div>

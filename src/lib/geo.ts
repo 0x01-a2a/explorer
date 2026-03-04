@@ -169,3 +169,24 @@ export function resolveGeo(
 
   return null;
 }
+
+// Land-only anchor points for agents without geo data
+const LAND_ANCHORS = [
+  ...Object.values(CITY_COORDS),
+  ...Object.values(COUNTRY_COORDS),
+];
+
+/**
+ * Deterministic geo position from an agent_id string.
+ * Picks a real city/country location based on the ID hash,
+ * then jitters around it so agents don't stack on top of each other.
+ */
+export function geoFromId(agentId: string): { lat: number; lng: number } {
+  let h = 0;
+  for (let i = 0; i < agentId.length; i++) {
+    h = (h * 31 + agentId.charCodeAt(i)) | 0;
+  }
+  const anchor = LAND_ANCHORS[(h >>> 0) % LAND_ANCHORS.length];
+  const [lat, lng] = jitterGeo(anchor.lat, anchor.lng, 5);
+  return { lat, lng };
+}
