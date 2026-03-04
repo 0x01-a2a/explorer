@@ -9,9 +9,13 @@ export async function GET() {
   }
 
   try {
+    const headers: Record<string, string> = {};
+    if (process.env.AGGREGATOR_API_TOKEN) {
+      headers["Authorization"] = `Bearer ${process.env.AGGREGATOR_API_TOKEN}`;
+    }
     const res = await fetch(
       `${process.env.AGGREGATOR_URL}/agents?sort=recent&limit=200`,
-      { next: { revalidate: 30 } }
+      { next: { revalidate: 30 }, headers }
     );
 
     if (!res.ok) {
@@ -22,7 +26,8 @@ export async function GET() {
     }
 
     const data = await res.json();
-    return NextResponse.json(data);
+    const agents = Array.isArray(data) ? data : data.value ?? [];
+    return NextResponse.json(agents);
   } catch {
     return NextResponse.json(generateMockAgents());
   }

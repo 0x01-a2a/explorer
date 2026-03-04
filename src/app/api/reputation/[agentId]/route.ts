@@ -63,13 +63,19 @@ export async function GET(
   }
 
   try {
+    const headers: Record<string, string> = {};
+    if (process.env.AGGREGATOR_API_TOKEN) {
+      headers["Authorization"] = `Bearer ${process.env.AGGREGATOR_API_TOKEN}`;
+    }
     const res = await fetch(
-      `${process.env.AGGREGATOR_URL}/agents/${agentId}/profile`
+      `${process.env.AGGREGATOR_URL}/agents/${agentId}/profile`,
+      { headers }
     );
 
     if (!res.ok) {
       const repRes = await fetch(
-        `${process.env.AGGREGATOR_URL}/reputation/${agentId}`
+        `${process.env.AGGREGATOR_URL}/reputation/${agentId}`,
+        { headers }
       );
       if (!repRes.ok) {
         return NextResponse.json(
