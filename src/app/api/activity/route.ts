@@ -22,8 +22,13 @@ export async function GET(request: NextRequest) {
       ? `${process.env.AGGREGATOR_URL}/activity?limit=${limit}`
       : `${process.env.AGGREGATOR_URL}/stats/network`;
 
+    const headers: Record<string, string> = {};
+    if (process.env.AGGREGATOR_API_TOKEN) {
+      headers["Authorization"] = `Bearer ${process.env.AGGREGATOR_API_TOKEN}`;
+    }
     const res = await fetch(endpoint, {
       next: { revalidate: wantEvents ? 5 : 30 },
+      headers,
     });
 
     if (!res.ok) {

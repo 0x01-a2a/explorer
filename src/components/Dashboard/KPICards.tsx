@@ -7,18 +7,20 @@ import type { NetworkStats } from "@/types/events";
 interface KPICardsProps {
   data: NetworkStats | null;
   loading: boolean;
+  activeAgentCount?: number;
 }
 
 function uptimeHours(startedAt: number): number {
-  return Math.floor((Date.now() - startedAt) / 3600000);
+  const ms = startedAt < 1e12 ? startedAt * 1000 : startedAt;
+  return Math.floor((Date.now() - ms) / 3600000);
 }
 
-export function KPICards({ data, loading }: KPICardsProps) {
+export function KPICards({ data, loading, activeAgentCount }: KPICardsProps) {
   const cards = [
     {
-      key: "agents",
+      key: "active-agents",
       label: "Active Agents",
-      value: data?.agent_count ?? 0,
+      value: activeAgentCount ?? 0,
       prefix: "",
       suffix: "",
       icon: (
@@ -29,17 +31,30 @@ export function KPICards({ data, loading }: KPICardsProps) {
       gradient: "from-neon-cyan/20 to-transparent",
     },
     {
-      key: "interactions",
-      label: "Total Interactions",
-      value: data?.interaction_count ?? 0,
+      key: "total-agents",
+      label: "Total Agents",
+      value: data?.agent_count ?? 0,
       prefix: "",
       suffix: "",
       icon: (
         <svg className="h-5 w-5 text-neon-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
         </svg>
       ),
       gradient: "from-neon-green/20 to-transparent",
+    },
+    {
+      key: "signals",
+      label: "Signals",
+      value: data?.beacon_count ?? 0,
+      prefix: "",
+      suffix: "",
+      icon: (
+        <svg className="h-5 w-5 text-neon-amber" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+        </svg>
+      ),
+      gradient: "from-neon-amber/20 to-transparent",
     },
     {
       key: "beacons",
@@ -48,29 +63,42 @@ export function KPICards({ data, loading }: KPICardsProps) {
       prefix: "",
       suffix: " /min",
       icon: (
-        <svg className="h-5 w-5 text-neon-amber" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.348 14.652a3.75 3.75 0 0 1 0-5.304m5.304 0a3.75 3.75 0 0 1 0 5.304m-7.425 2.121a6.75 6.75 0 0 1 0-9.546m9.546 0a6.75 6.75 0 0 1 0 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-        </svg>
-      ),
-      gradient: "from-neon-amber/20 to-transparent",
-    },
-    {
-      key: "uptime",
-      label: "Network Uptime",
-      value: data ? uptimeHours(data.started_at) : 0,
-      prefix: "",
-      suffix: "h",
-      icon: (
         <svg className="h-5 w-5 text-neon-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.348 14.652a3.75 3.75 0 0 1 0-5.304m5.304 0a3.75 3.75 0 0 1 0 5.304m-7.425 2.121a6.75 6.75 0 0 1 0-9.546m9.546 0a6.75 6.75 0 0 1 0 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
         </svg>
       ),
       gradient: "from-neon-purple/20 to-transparent",
     },
+    {
+      key: "interactions",
+      label: "Interactions",
+      value: data?.interaction_count ?? 0,
+      prefix: "",
+      suffix: "",
+      icon: (
+        <svg className="h-5 w-5 text-neon-red" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+        </svg>
+      ),
+      gradient: "from-neon-red/20 to-transparent",
+    },
+    {
+      key: "uptime",
+      label: "Uptime",
+      value: data ? uptimeHours(data.started_at) : 0,
+      prefix: "",
+      suffix: "h",
+      icon: (
+        <svg className="h-5 w-5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+      ),
+      gradient: "from-white/5 to-transparent",
+    },
   ];
 
   return (
-    <div id="stats" className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+    <div id="stats" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 sm:gap-4">
       {cards.map((card) => (
         <GlassCard key={card.key} elevated neon className="relative overflow-hidden p-4 sm:p-5">
           <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-50`} />

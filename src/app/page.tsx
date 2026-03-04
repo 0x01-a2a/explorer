@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Header } from "@/components/Layout/Header";
 import { MeshGlobe } from "@/components/Globe/MeshGlobe";
 import { GlobeOverlay } from "@/components/Globe/GlobeOverlay";
 import { EventTicker } from "@/components/Ticker/EventTicker";
-import { KPICards } from "@/components/Dashboard/KPICards";
 import { AgentPreview } from "@/components/Agent/AgentPreview";
 import { CTABanner } from "@/components/Layout/CTABanner";
 import { useActivityStream } from "@/hooks/useActivityStream";
@@ -16,40 +15,41 @@ import type { AgentReputation } from "@/types/events";
 
 export default function Explorer() {
   const { events, connected } = useActivityStream();
-  const { data: networkStats, loading: statsLoading } = useKPIData();
+  const { data: networkStats } = useKPIData();
   const { agents } = usePeers();
   const [selectedAgent, setSelectedAgent] = useState<AgentReputation | null>(
     null
   );
 
+  const activeAgentCount = useMemo(() => {
+    const fiveMinAgo = Date.now() / 1000 - 300;
+    return agents.filter((a) => a.last_seen > fiveMinAgo).length;
+  }, [agents]);
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Header connected={connected} />
 
-      <main className="pt-14">
-        {/* KPI Bar */}
-        <section className="mx-auto max-w-[1920px] px-4 pt-4 lg:px-8">
-          <KPICards data={networkStats} loading={statsLoading} />
-        </section>
-
-        {/* Globe + Ticker */}
+      <main className="flex-1 pt-14">
+        {/* Globe + Ticker — full height */}
         <section className="mx-auto max-w-[1920px] px-4 pt-4 lg:px-8">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px]">
             {/* Globe */}
             <div
               id="globe"
               className="glass-elevated relative overflow-hidden"
-              style={{ minHeight: "clamp(400px, 60vh, 800px)" }}
+              style={{ minHeight: "clamp(500px, 75vh, 900px)" }}
             >
               <MeshGlobe
                 agents={agents}
                 onAgentClick={(agent) => setSelectedAgent(agent)}
               />
               <GlobeOverlay
-                agentCount={agents.length}
+                activeCount={activeAgentCount}
+                stats={networkStats}
                 bootstrapCount={BOOTSTRAP_NODES.length}
               />
-              <div className="absolute bottom-4 left-4 z-20">
+              <div className="absolute bottom-4 right-4 z-20">
                 <div className="glass px-3 py-2 text-[10px] text-white/40 space-y-0.5">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-neon-cyan" />
@@ -68,7 +68,7 @@ export default function Explorer() {
             </div>
 
             {/* Ticker */}
-            <div className="lg:max-h-[clamp(400px,60vh,800px)]">
+            <div className="lg:max-h-[clamp(500px,75vh,900px)]">
               <EventTicker events={events} connected={connected} />
             </div>
           </div>
