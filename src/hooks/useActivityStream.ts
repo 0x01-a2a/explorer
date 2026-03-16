@@ -92,7 +92,9 @@ export function useActivityStream() {
   }, [fetchRealEvents]);
 
   useEffect(() => {
-    if (!wsUrl) {
+    const wsUrlValue = wsUrl;
+
+    if (!wsUrlValue) {
       if (strictReal) {
         startRealPolling();
         return () => {
@@ -108,8 +110,8 @@ export function useActivityStream() {
     let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
     let fallen = false;
 
-    function connect() {
-      const ws = new WebSocket(wsUrl);
+    function connect(url: string) {
+      const ws = new WebSocket(url);
       wsRef.current = ws;
 
       fallbackTimer = setTimeout(() => {
@@ -156,7 +158,7 @@ export function useActivityStream() {
         if (!fallen) {
           reconnectTimer.current = setTimeout(() => {
             backoff.current = Math.min(backoff.current * 2, 30000);
-            connect();
+            connect(url);
           }, backoff.current);
         }
       };
@@ -170,7 +172,7 @@ export function useActivityStream() {
       };
     }
 
-    connect();
+    connect(wsUrlValue);
 
     return () => {
       if (fallbackTimer) clearTimeout(fallbackTimer);
