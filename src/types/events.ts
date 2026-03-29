@@ -16,6 +16,7 @@ export interface AgentReputation {
   city?: string;
   latency: Record<string, number>;
   geo_consistent?: boolean;
+  reel_url?: string;
 }
 
 // Matches aggregator's NetworkStats struct

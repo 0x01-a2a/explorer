@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState, useMemo } from "react";
 import { EarningStoryCard } from "./EarningStoryCard";
+import { VideoReelCard } from "./VideoReelCard";
 import type { AgentReputation, ActivityEvent } from "@/types/events";
 
 interface AgentReelProps {
@@ -91,16 +92,29 @@ export function AgentReel({
     >
       <style>{`.reel-hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
       {sorted.map((agent) => (
-        <EarningStoryCard
-          key={agent.agent_id}
-          agent={agent}
-          isFollowed={followed.has(agent.agent_id)}
-          onFollow={(e) => {
-            e.stopPropagation();
-            onToggleFollow(agent.agent_id);
-          }}
-          onClick={() => onAgentClick(agent)}
-        />
+        agent.reel_url ? (
+          <VideoReelCard
+            key={agent.agent_id}
+            agent={agent}
+            isFollowed={followed.has(agent.agent_id)}
+            onFollow={(e) => {
+              e.stopPropagation();
+              onToggleFollow(agent.agent_id);
+            }}
+            onClick={() => onAgentClick(agent)}
+          />
+        ) : (
+          <EarningStoryCard
+            key={agent.agent_id}
+            agent={agent}
+            isFollowed={followed.has(agent.agent_id)}
+            onFollow={(e) => {
+              e.stopPropagation();
+              onToggleFollow(agent.agent_id);
+            }}
+            onClick={() => onAgentClick(agent)}
+          />
+        )
       ))}
     </div>
   );
